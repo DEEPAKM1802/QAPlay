@@ -1,0 +1,112 @@
+# Add Subscription Details
+[subscription]
+name = ''
+
+# Add Environment specific details for the current subscription
+
+#---------------------------------------------PRODUCTION---------------------------------------------------------------#
+
+
+[subscription.env.prod]
+url = ''
+
+[subscription.env.prod.login]
+url = ''
+username = ''
+password = ''
+
+[subscription.env.prod.video.video1]
+video_url = ''
+xpath = ''
+
+[subscription.env.prod.video.video2]
+video_url = ''
+xpath = ''
+
+[subscription.env.prod.pdf.pdf1]
+pdf_url = ''
+xpath = ''
+
+[subscription.env.prod.pdf.pdf2]
+pdf_url = ''
+xpath = ''
+
+[subscription.env.prod.search.search1]
+search_url = ''
+xpath = ''
+keyword = ''
+
+[subscription.env.prod.search.search2]
+search_url = ''
+xpath = ''
+keyword = ''
+
+#------------------------------------------------STAGE-----------------------------------------------------------------#
+
+[subscription.env.stage]
+url = ''
+
+[subscription.env.stage.login]
+username = ''
+password = ''
+
+[subscription.env.stage.video.video1]
+video_url = ''
+xpath = ''
+
+[subscription.env.stage.video.video2]
+video_url = ''
+xpath = ''
+
+[subscription.env.stage.pdf.pdf1]
+pdf_url = ''
+xpath = ''
+
+[subscription.env.stage.pdf.pdf2]
+pdf_url = ''
+xpath = ''
+
+[subscription.env.stage.search.search1]
+search_url = ''
+xpath = ''
+keyword = ''
+
+[subscription.env.stage.search.search2]
+search_url = ''
+xpath = ''
+keyword = ''
+
+#--------------------------------------------------DEV-----------------------------------------------------------------#
+
+[subscription.env.dev]
+url = ''
+
+[subscription.env.dev.login]
+username = ''
+password = ''
+
+[subscription.env.dev.video.video1]
+video_url = ''
+xpath = ''
+
+[subscription.env.dev.video.video2]
+video_url = ''
+xpath = ''
+
+[subscription.env.dev.pdf.pdf1]
+pdf_url = ''
+xpath = ''
+
+[subscription.env.dev.pdf.pdf2]
+pdf_url = ''
+xpath = ''
+
+[subscription.env.dev.search.search1]
+search_url = ''
+xpath = ''
+keyword = ''
+
+[subscription.env.dev.search.search2]
+search_url = ''
+xpath = ''
+keyword = ''

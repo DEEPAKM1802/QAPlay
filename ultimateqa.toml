@@ -1,0 +1,124 @@
+# Add Subscription Details
+[subscription]
+name = 'ultimateqa'
+
+# Add Environment specific details for the current subscription
+
+#---------------------------------------------PRODUCTION---------------------------------------------------------------#
+
+
+[subscription.env.prod]
+url = 'https://courses.ultimateqa.com/enrollments'
+
+[subscription.env.prod.login]
+login_url = 'https://courses.ultimateqa.com/users/sign_in'
+username_xpath = '//*[@id="user[email]"]'
+username = 'mishra@test.com'
+password_xpath = '//*[@id="user[password]"]'
+password = 'qatest123'
+sign_in_xpath = 'button:text("Sign in")'
+
+[subscription.env.prod.video.video1]
+video_url = ''
+xpath = ''
+
+[subscription.env.prod.video.video2]
+video_url = ''
+xpath = ''
+
+[subscription.env.prod.pdf.pdf1]
+pdf_url = ''
+xpath = ''
+
+[subscription.env.prod.pdf.pdf2]
+pdf_url = ''
+xpath = ''
+
+[subscription.env.prod.search.search1]
+search_url = ''
+xpath = ''
+keyword = ''
+
+[subscription.env.prod.search.search2]
+search_url = ''
+xpath = ''
+keyword = ''
+
+#------------------------------------------------STAGE-----------------------------------------------------------------#
+
+[subscription.env.stage]
+url = 'https://www.saucedemo.com/inventory-item.html?id=4'
+
+[subscription.env.stage.login]
+login_url = 'https://www.saucedemo.com/'
+username_xpath = '//*[@id="user-name"]'
+username = 'standard_user'
+password_xpath = '//*[@id="password"]'
+password = 'secret_sauce'
+sign_in_xpath = '//*[@id="login-button"]'
+
+
+[subscription.env.stage.video.video1]
+video_url = ''
+xpath = ''
+
+[subscription.env.stage.video.video2]
+video_url = ''
+xpath = ''
+
+[subscription.env.stage.pdf.pdf1]
+pdf_url = ''
+xpath = ''
+
+[subscription.env.stage.pdf.pdf2]
+pdf_url = ''
+xpath = ''
+
+[subscription.env.stage.search.search1]
+search_url = ''
+xpath = ''
+keyword = ''
+
+[subscription.env.stage.search.search2]
+search_url = ''
+xpath = ''
+keyword = ''
+
+#--------------------------------------------------DEV-----------------------------------------------------------------#
+
+[subscription.env.dev]
+url = ''
+
+[subscription.env.dev.login]
+login_url = 'https://courses.ultimateqa.com/users/sign_in'
+username_xpath = '//*[@id="user[email]"]'
+username = 'mishra@test.com'
+password_xpath = '//*[@id="user[password]"]'
+password = 'qatest123'
+sign_in_xpath = '//*[@id="login-button"]'
+
+[subscription.env.dev.video.video1]
+video_url = ''
+xpath = ''
+
+[subscription.env.dev.video.video2]
+video_url = ''
+xpath = ''
+
+[subscription.env.dev.pdf.pdf1]
+pdf_url = ''
+xpath = ''
+
+[subscription.env.dev.pdf.pdf2]
+pdf_url = ''
+xpath = ''
+
+[subscription.env.dev.search.search1]
+search_url = ''
+xpath = ''
+keyword = ''
+
+[subscription.env.dev.search.search2]
+search_url = ''
+xpath = ''
+keyword = ''
