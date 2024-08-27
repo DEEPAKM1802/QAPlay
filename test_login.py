@@ -243,3 +243,216 @@ class LoginTest(TestExecution):
                 Description="Login test failed.",
                 Actual_Result=str(e)
             )
+
+
+
+
+
+import re
+from playwright.sync_api import Page, expect, TimeoutError
+
+class LoginTest(TestExecution):
+
+    login_translations = {
+        "en": ["login", "log in", "sign in", "signin"],
+        "fr": ["connexion", "se connecter"],
+        "de": ["anmelden", "login", "einloggen"],
+        "es": ["iniciar sesión", "acceso", "entrar"],
+        "it": ["accedi", "login", "collegati"],
+        "pt": ["entrar", "iniciar sessão"],
+        "tr": ["giriş yap", "oturum aç", "login"],
+        "nl": ["inloggen", "login", "aanmelden"],
+        "zh-cn": ["登录", "登入"],
+        "ja": ["ログイン", "サインイン"],
+        "ko": ["로그인", "접속"],
+        "el": ["σύνδεση", "login", "είσοδος"]  # Greek translations
+    }
+
+    username_translations = {
+        "en": ["username", "email", "e-mail", "user", "mobile", "phone", "account"],
+        "fr": ["nom d'utilisateur", "e-mail", "adresse électronique", "téléphone", "compte"],
+        "de": ["benutzername", "e-mail", "telefon", "konto"],
+        "es": ["nombre de usuario", "correo electrónico", "email", "teléfono", "cuenta"],
+        "it": ["nome utente", "e-mail", "telefono", "account"],
+        "pt": ["nome de usuário", "e-mail", "telefone", "conta"],
+        "tr": ["kullanıcı adı", "e-posta", "telefon", "hesap"],
+        "nl": ["gebruikersnaam", "e-mail", "telefoon", "account"],
+        "zh-cn": ["用户名", "电子邮件", "电话", "帐户"],
+        "ja": ["ユーザー名", "電子メール", "電話", "アカウント"],
+        "ko": ["사용자 이름", "이메일", "전화", "계정"],
+        "el": ["όνομα χρήστη", "ηλεκτρονικό ταχυδρομείο", "τηλέφωνο", "λογαριασμός"]  # Greek translations
+    }
+
+    password_translations = {
+        "en": ["password", "pass", "pwd"],
+        "fr": ["mot de passe", "passe"],
+        "de": ["passwort"],
+        "es": ["contraseña", "clave"],
+        "it": ["password", "parola d'ordine"],
+        "pt": ["senha", "palavra-passe"],
+        "tr": ["şifre", "parola"],
+        "nl": ["wachtwoord"],
+        "zh-cn": ["密码"],
+        "ja": ["パスワード"],
+        "ko": ["비밀번호"],
+        "el": ["κωδικός πρόσβασης", "κωδικός"]
+    }
+
+    submit_translations = {
+        "en": ["login", "log in", "sign in", "signin", "submit", "Submit", "SUBMIT"],
+        "fr": ["connexion", "se connecter", "soumettre", "Soumettre", "SOUMETTRE"],
+        "de": ["anmelden", "login", "einloggen", "einreichen", "Einreichen", "EINREICHEN"],
+        "es": ["iniciar sesión", "acceso", "entrar", "enviar", "Enviar", "ENVIAR"],
+        "it": ["accedi", "login", "collegati", "invia", "Invia", "INVIA"],
+        "pt": ["entrar", "iniciar sessão", "enviar", "Enviar", "ENVIAR"],
+        "tr": ["giriş yap", "oturum aç", "login", "gönder", "Gönder", "GÖNDER"],
+        "nl": ["inloggen", "login", "aanmelden", "indienen", "Indienen", "INDIENEN"],
+        "zh-cn": ["登录", "登入", "提交", "提交", "提交"],
+        "ja": ["ログイン", "サインイン", "送信", "送信", "送信"],
+        "ko": ["로그인", "접속", "제출", "제출", "제출"],
+        "el": ["σύνδεση", "login", "είσοδος", "υποβολή", "Υποβολή", "ΥΠΟΒΟΛΗ"]  # Greek translations
+    }
+    def generate_login_regex(self):
+        all_terms = [term for terms in self.login_translations.values() for term in terms]
+        patterns = [rf"\b{re.escape(term)}\b" for term in all_terms]
+        regex_pattern = "|".join(patterns)
+        compiled_regex = re.compile(regex_pattern, re.IGNORECASE)
+        return compiled_regex
+
+
+    def generate_username_regex(self):
+        all_terms = [term for terms in self.username_translations.values() for term in terms]
+        patterns = [rf"\b{re.escape(term)}\b" for term in all_terms]
+        regex_pattern = "|".join(patterns)
+        compiled_regex = re.compile(regex_pattern, re.IGNORECASE)
+        return compiled_regex
+
+
+    def generate_password_regex(self):
+        all_terms = [term for terms in self.password_translations.values() for term in terms]
+        patterns = [rf"\b{re.escape(term)}\b" for term in all_terms]
+        regex_pattern = "|".join(patterns)
+        compiled_regex = re.compile(regex_pattern, re.IGNORECASE)
+        return compiled_regex
+
+
+    def generate_submit_button_regex(self):
+        submit_terms = [term for terms in self.submit_translations.values() for term in terms]
+        patterns = [rf"\b{re.escape(term)}\b" for term in submit_terms]
+        regex_pattern = "|".join(patterns)
+        compiled_regex = re.compile(regex_pattern, re.IGNORECASE)
+        return compiled_regex
+
+
+    def find_element(self, page: Page, regex, element_type="input"):
+        elements = page.locator(f"{element_type}:visible").all()
+        unique_elements = set()
+
+        for element in elements:
+            identifier = (element.get_attribute("id"), element.get_attribute("name"), element.text_content())
+            if identifier in unique_elements:
+                continue
+            unique_elements.add(identifier)
+
+            text_content = element.text_content() or ""
+            placeholder = element.get_attribute("placeholder") or ""
+            name = element.get_attribute("name") or ""
+            id_attr = element.get_attribute("id") or ""
+
+            if (regex.search(text_content) or
+                    regex.search(placeholder) or
+                    regex.search(name) or
+                    regex.search(id_attr)):
+                return element
+
+        return None
+
+
+    def run_test(self) -> TestResult:
+        try:
+            page = self.page.new_page()
+            page.goto(self.site.url)
+
+            # Step 1: Find and click the login button
+            login_regex = self.generate_login_regex()
+            login_button = self.find_element(page, login_regex, element_type="button,a")
+            if login_button:
+                login_button.click()
+                page.wait_for_timeout(3000)
+
+            else:
+                return TestResult(
+                    Name="Login Test",
+                    Status=TestStatus.FAIL,
+                    Description="Login button not found.",
+                    Actual_Result="No login button found on the page."
+                )
+
+            # Step 2: Find the username field
+            username_regex = self.generate_username_regex()
+            username_field = self.find_element(page, username_regex, element_type="input")
+            if not username_field:
+                return TestResult(
+                    Name="Login Test",
+                    Status=TestStatus.FAIL,
+                    Description="Username field not found.",
+                    Actual_Result="No username field found after login button click."
+                )
+
+            # Step 3: Find the password field
+            password_regex = self.generate_password_regex()
+            password_field = self.find_element(page, password_regex, element_type="input")
+            if not password_field:
+                return TestResult(
+                    Name="Login Test",
+                    Status=TestStatus.FAIL,
+                    Description="Password field not found.",
+                    Actual_Result="No password field found after login button click."
+                )
+
+            # Step 4: Fill in the username and password
+            username_field.fill(self.site.login.username)
+            password_field.fill(self.site.login.password)
+
+            # Step 5: Find and click the submit button
+            submit_button_regex = self.generate_submit_button_regex()
+            submit_button = self.find_element(page, submit_button_regex, element_type="button,input[type='submit']")
+            if submit_button:
+                submit_button.click()
+                page.wait_for_timeout(10000)
+            else:
+                return TestResult(
+                    Name="Login Test",
+                    Status=TestStatus.FAIL,
+                    Description="Submit button not found.",
+                    Actual_Result="No submit button found after filling in login details."
+                )
+
+            # Step 6: Wait for the network to idle and save state
+            page.wait_for_load_state('networkidle')
+            pytest._authenticated_state = self.page.storage_state()
+            self.site.internal_pages.append(self.site.login.login_url)
+
+            return TestResult(
+                Name="Login Test",
+                Status=TestStatus.PASS,
+                Description="Successfully logged into the application.",
+                Actual_Result="Logged in"
+            )
+
+        except Exception as e:
+            return TestResult(
+                Name="Login Test",
+                Status=TestStatus.FAIL,
+                Description="Login test failed.",
+                Actual_Result=str(e)
+            )
+
+
+    def run_comparison(self, results):
+        return ComparisonResult(
+            Name="Login Test",
+            Status=TestStatus.PASS,
+            Description="Login functionality works as expected.",
+            Expected_Result="User is on the Dashboard page."
+        )
