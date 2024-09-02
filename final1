@@ -1,0 +1,1091 @@
+import base64
+import html
+import json
+import os
+from datetime import datetime
+from pathlib import Path
+
+from Utilities.Data_Structures import TestResult, ComparisonResult
+from Utilities.FilePath_Handler import OutputHandler
+from abc import ABC, abstractmethod
+
+from Utilities.Report_HTML import generate_html_report
+
+
+class TestExecution(ABC):
+
+    def __init__(self, subscription, context):
+        self.subscription = subscription
+        self.context = context
+        self.page = self.context.new_page()
+        self.site = None
+        self.env = None
+        self.test_name = self.__class__.__name__  # Use class name as test name
+        self.step_counter = 1  # Initialize the step counter
+
+        self.test_execution()
+
+    @abstractmethod
+    def run_test(self) -> TestResult:
+        pass
+
+    @abstractmethod
+    def run_comparison(self, results) -> ComparisonResult:
+        pass
+
+    def test_execution(self):
+        for env_name, site in self.subscription.env:
+            self.step_counter = 1  # Initialize the step counter
+            if site is not None:
+                self.site = site
+                self.env = env_name
+                test_result = self.run_test()
+                # Include screenshot paths in the test result
+                test_result.Proof_Path = self.screenshot_paths
+
+                OutputHandler.save_test_result(self.subscription.name, env_name, test_result)
+                self.create_html_report()  # Generate HTML report after test execution
+        self.save_test_comparison()
+        self.generate_report()
+
+    def save_test_comparison(self):
+        results = OutputHandler.get_test_results(self.subscription.name)
+        comparison_result = self.run_comparison(results)
+        OutputHandler.save_comparison_result(self.subscription.name, comparison_result)
+
+    def capture_screenshot(self, action_name: str, element=None, caption=""):
+        if element:
+            # Highlight the element using JavaScript within the frame context
+            self.highlight_element(element)
+
+        # Capture the screenshot
+        screenshot_path = OutputHandler.capture_screenshot(
+            self.test_name, self.subscription.name, self.env, self.page, action_name, self.step_counter
+        )
+
+        # Revert the highlight after screenshot
+        if element:
+            self.remove_highlight(element)
+
+        # Increment step counter
+        self.step_counter += 1
+
+        # Store the screenshot path
+        if screenshot_path:
+            if not hasattr(self, 'screenshot_paths'):
+                self.screenshot_paths = []
+            self.captions = []
+            self.screenshot_paths.append(screenshot_path)
+            self.captions.append(caption)
+
+    def highlight_element(self, locator, color='blue', background_color='rgba(0, 0, 100, 0.01)'):
+        locator.evaluate(f'''
+            (element) => {{
+                element.style.border = "3px solid {color}";
+                element.style.boxShadow = "0 0 10px {color}";
+                element.style.backgroundColor = "{background_color}"
+            }}
+        ''')
+
+    def remove_highlight(self, locator):
+        locator.evaluate('''
+            (element) => {{
+                element.style.border = "";
+                element.style.boxShadow = "";
+                element.style.backgroundColor = "";
+            }}
+        ''')
+
+    def create_html_report(self):
+        # Define the HTML template as a raw string using a direct approach
+        html_template = '''
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Test Execution Report</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    margin: 0;
+                    padding: 0;
+                }
+                .container {
+                    width: 80%;
+                    margin: 0 auto;
+                }
+                .timeline {
+                    display: flex;
+                    overflow-x: auto;
+                    padding: 10px 0;
+                    border-bottom: 2px solid #ddd;
+                }
+                .timeline-item {
+                    position: relative;
+                    margin-right: 15px;
+                }
+                .timeline-item img {
+                    width: 100px;
+                    height: 60px;
+                    object-fit: cover;
+                    border: 2px solid #ddd;
+                    border-radius: 4px;
+                    cursor: pointer;
+                }
+                .content {
+                    display: flex;
+                    margin-top: 20px;
+                }
+                .content .left-column {
+                    width: 30%;
+                    padding-right: 20px;
+                    border-right: 2px solid #ddd;
+                }
+                .content .right-column {
+                    width: 70%;
+                }
+                .content img {
+                    max-width: 100%;
+                    border: 2px solid #ddd;
+                    border-radius: 4px;
+                }
+                .action-description {
+                    margin-bottom: 20px;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <!-- Timeline -->
+                <div class="timeline">
+                    {timeline_items}
+                </div>
+
+                <!-- Content Area -->
+                <div class="content">
+                    <!-- Left Column -->
+                    <div class="left-column">
+                        <div class="action-description">
+                            <h3>Action Description</h3>
+                            <p id="action-description"></p>
+                        </div>
+                        <div class="element-details">
+                            <h3>Element Details</h3>
+                            <p id="element-details"></p>
+                        </div>
+                    </div>
+
+                    <!-- Right Column -->
+                    <div class="right-column">
+                        <img id="full-image" src="" alt="Full Screenshot">
+                    </div>
+                </div>
+            </div>
+
+            <script>
+                function showFullImage(imagePath, actionDescription) {
+                    document.getElementById('full-image').src = imagePath;
+                    document.getElementById('action-description').textContent = actionDescription;
+                    // Add more details as needed
+                }
+            </script>
+        </body>
+        </html>
+        '''
+
+        def get_base64_image(image_path):
+            """Convert image to base64."""
+            with open(image_path, "rb") as image_file:
+                return base64.b64encode(image_file.read()).decode('utf-8')
+
+        # Generate timeline items with thumbnails
+        timeline_items = ''
+        for i, screenshot_path in enumerate(self.screenshot_paths):
+            # Convert image to Base64
+            base64_image = get_base64_image(screenshot_path)
+            image_data_uri = f"data:image/png;base64,{base64_image}"
+            action_description = f"Step {i + 1}"  # Example description, modify as needed
+            timeline_items += f'''
+            <div class="timeline-item">
+                <img src="{image_data_uri}" alt="Screenshot Thumbnail" onclick="showFullImage('{image_data_uri}', '{action_description}')">
+            </div>
+            '''
+
+        # Create the HTML content
+        html_content = html_template.replace('{timeline_items}', timeline_items)
+
+        # Write the HTML content to a file in the same directory as the first screenshot
+        if self.screenshot_paths:
+            output_file = os.path.join(os.path.dirname(self.screenshot_paths[0]), 'report.html')
+            with open(output_file, 'w') as file:
+                file.write(html_content)
+
+        print(f"HTML report generated: {output_file}")
+
+    def generate_report(self):
+        file_paths = OutputHandler.get_file_paths(self.subscription.name)
+        generate_html_report(file_paths, self.subscription.name)
+#########################################################################################################################
+import json
+from datetime import datetime
+from pathlib import Path
+from Utilities.Data_Structures import TestResult, ComparisonResult
+
+# # Define the base directory for results
+# RESULTS_BASE_DIR = Path("Result")
+#
+#
+# class OutputHandler:
+#     results_cache = {}
+#     file_paths = {}  # Dictionary to store file paths of JSON files for each environment
+#
+#     @staticmethod
+#     def ensure_directory_exists(directory: Path):
+#         if not directory.exists():
+#             directory.mkdir(parents=True, exist_ok=True)
+#         return directory
+#
+#     @staticmethod
+#     def get_subscription_dir(subscription_name: str) -> Path:
+#         subscription_dir = RESULTS_BASE_DIR / subscription_name
+#         return OutputHandler.ensure_directory_exists(subscription_dir)
+#
+#     @staticmethod
+#     def get_execution_dir(subscription_name: str) -> Path:
+#         current_time = datetime.now().strftime("%d_%m_%Y_%H_%M")
+#         subscription_dir = OutputHandler.get_subscription_dir(subscription_name)
+#         execution_dir = subscription_dir / current_time
+#         return OutputHandler.ensure_directory_exists(execution_dir)
+#
+#     @staticmethod
+#     def get_env_dir(subscription_name: str, env_name: str) -> Path:
+#         execution_dir = OutputHandler.get_execution_dir(subscription_name)
+#         env_dir = execution_dir / env_name
+#         return OutputHandler.ensure_directory_exists(env_dir)
+#
+#     @staticmethod
+#     def save_test_result(subscription_name: str, env_name: str, test_result: TestResult):
+#         env_dir = OutputHandler.get_env_dir(subscription_name, env_name)
+#         current_time = datetime.now().strftime("%d_%m_%Y_%H_%M")
+#         json_file_name = f"{subscription_name}_{env_name}_{current_time}.json"
+#         json_file_path = env_dir / json_file_name
+#
+#         if subscription_name not in OutputHandler.results_cache:
+#             OutputHandler.results_cache[subscription_name] = {}
+#
+#         if env_name not in OutputHandler.results_cache[subscription_name]:
+#             OutputHandler.results_cache[subscription_name][env_name] = []
+#
+#         OutputHandler.results_cache[subscription_name][env_name].append(test_result.model_dump())
+#
+#         with open(json_file_path, 'w') as file:
+#             json.dump(OutputHandler.results_cache[subscription_name][env_name], file, indent=4, default=str)
+#
+#         if subscription_name not in OutputHandler.file_paths:
+#             OutputHandler.file_paths[subscription_name] = {}
+#
+#         # Ensure only one path is stored per environment
+#         OutputHandler.file_paths[subscription_name][env_name] = str(json_file_path)
+#
+#     @staticmethod
+#     def save_comparison_result(subscription_name: str, comparison_result: ComparisonResult):
+#         execution_dir = OutputHandler.get_execution_dir(subscription_name)
+#         comparison_file_path = execution_dir / "comparison.json"
+#
+#         if comparison_file_path.exists():
+#             with open(comparison_file_path, 'r') as file:
+#                 existing_results = json.load(file)
+#         else:
+#             existing_results = []
+#
+#         existing_results.append(comparison_result.model_dump())
+#
+#         with open(comparison_file_path, 'w') as file:
+#             json.dump(existing_results, file, indent=4, default=str)
+#
+#         if subscription_name not in OutputHandler.file_paths:
+#             OutputHandler.file_paths[subscription_name] = {}
+#
+#         # Ensure only one path is stored for comparison
+#         OutputHandler.file_paths[subscription_name]["comparison"] = str(comparison_file_path)
+#
+#     @staticmethod
+#     def get_test_results(subscription_name: str):
+#         return OutputHandler.results_cache.get(subscription_name, {})
+#
+#     @staticmethod
+#     def get_file_paths(subscription_name: str):
+#         return OutputHandler.file_paths.get(subscription_name, {})
+
+# File: File_Path_Handler.py
+
+from pathlib import Path
+from datetime import datetime
+import json
+
+# Define the base directory for results
+RESULTS_BASE_DIR = Path("Result")
+
+
+class OutputHandler:
+    results_cache = {}
+    file_paths = {}  # Dictionary to store file paths of JSON files for each environment
+    execution_dirs = {}  # Store execution directories per subscription
+
+    @staticmethod
+    def ensure_directory_exists(directory: Path):
+        directory.mkdir(parents=True, exist_ok=True)
+        return directory
+
+    @staticmethod
+    def get_subscription_dir(subscription_name: str) -> Path:
+        subscription_dir = RESULTS_BASE_DIR / subscription_name
+        return OutputHandler.ensure_directory_exists(subscription_dir)
+
+    @staticmethod
+    def initialize_execution_dir(subscription_name: str) -> Path:
+        if subscription_name not in OutputHandler.execution_dirs:
+            current_time = datetime.now().strftime("%d_%m_%Y_%H_%M_%S")
+            subscription_dir = OutputHandler.get_subscription_dir(subscription_name)
+            execution_dir = subscription_dir / current_time
+            OutputHandler.execution_dirs[subscription_name] = OutputHandler.ensure_directory_exists(execution_dir)
+        return OutputHandler.execution_dirs[subscription_name]
+
+    @staticmethod
+    def get_env_dir(subscription_name: str, env_name: str) -> Path:
+        execution_dir = OutputHandler.initialize_execution_dir(subscription_name)
+        env_dir = execution_dir / env_name
+        return OutputHandler.ensure_directory_exists(env_dir)
+
+    @staticmethod
+    def save_test_result(subscription_name: str, env_name: str, test_result: TestResult):
+        env_dir = OutputHandler.get_env_dir(subscription_name, env_name)
+        json_file_name = f"{subscription_name}_{env_name}_results.json"
+        json_file_path = env_dir / json_file_name
+
+        if subscription_name not in OutputHandler.results_cache:
+            OutputHandler.results_cache[subscription_name] = {}
+
+        if env_name not in OutputHandler.results_cache[subscription_name]:
+            OutputHandler.results_cache[subscription_name][env_name] = []
+
+        OutputHandler.results_cache[subscription_name][env_name].append(test_result.model_dump())
+
+        with open(json_file_path, 'w') as file:
+            json.dump(OutputHandler.results_cache[subscription_name][env_name], file, indent=4, default=str)
+
+        if subscription_name not in OutputHandler.file_paths:
+            OutputHandler.file_paths[subscription_name] = {}
+
+        OutputHandler.file_paths[subscription_name][env_name] = str(json_file_path)
+
+    @staticmethod
+    def save_comparison_result(subscription_name: str, comparison_result: ComparisonResult):
+        execution_dir = OutputHandler.initialize_execution_dir(subscription_name)
+        comparison_file_path = execution_dir / "comparison.json"
+
+        if comparison_file_path.exists():
+            with open(comparison_file_path, 'r') as file:
+                existing_results = json.load(file)
+        else:
+            existing_results = []
+
+        existing_results.append(comparison_result.model_dump())
+
+        with open(comparison_file_path, 'w') as file:
+            json.dump(existing_results, file, indent=4, default=str)
+
+        if subscription_name not in OutputHandler.file_paths:
+            OutputHandler.file_paths[subscription_name] = {}
+
+        OutputHandler.file_paths[subscription_name]["comparison"] = str(comparison_file_path)
+
+    @staticmethod
+    def get_execution_dir(subscription_name: str) -> Path:
+        return OutputHandler.execution_dirs.get(subscription_name)
+
+    @staticmethod
+    def get_test_results(subscription_name: str):
+        return OutputHandler.results_cache.get(subscription_name, {})
+
+    @staticmethod
+    def get_file_paths(subscription_name: str):
+        return OutputHandler.file_paths.get(subscription_name, {})
+
+    @staticmethod
+    def capture_screenshot(test_name, subscription_name: str, env_name: str, page, action_name: str, step_counter) -> str:
+        timestamp = datetime.now().strftime("%d_%m_%Y_%H_%M_%S")
+        env_dir = OutputHandler.get_env_dir(subscription_name, env_name)
+        screenshot_name = f"{test_name}_{step_counter}_{action_name}_{env_name}_{subscription_name}_{timestamp}.png"
+        screenshot_path = env_dir / screenshot_name
+
+        try:
+            page.screenshot(path="C:\\Users\\deepa\\Documents\\Automation_QA\\QAPlay\\"+str(screenshot_path), full_page=True)
+            return str(screenshot_path)
+        except Exception as e:
+            print(f"Failed to capture screenshot for action '{action_name}': {str(e)}")
+            return ''
+
+######################################################################################################################################
+import pytest
+from Contracts.test_contract import TestExecution
+from Utilities.Data_Structures import TestResult, TestStatus, ComparisonResult
+import re
+from playwright.sync_api import Page
+
+
+class LoginTest(TestExecution):
+    login_translations = {
+        "en": ["login", "log in", "sign in", "signin"],
+        "fr": ["connexion", "se connecter"],
+        "de": ["anmelden", "login", "einloggen"],
+        "es": ["iniciar sesión", "acceso", "entrar"],
+        "it": ["accedi", "login", "collegati"],
+        "pt": ["entrar", "iniciar sessão"],
+        "tr": ["giriş yap", "oturum aç", "login"],
+        "nl": ["inloggen", "login", "aanmelden"],
+        "zh-cn": ["登录", "登入"],
+        "ja": ["ログイン", "サインイン"],
+        "ko": ["로그인", "접속"],
+        "el": ["σύνδεση", "login", "είσοδος"]  # Greek translations
+    }
+
+    username_translations = {
+        "en": ["username", "email", "e-mail", "user", "mobile", "phone", "account"],
+        "fr": ["nom d'utilisateur", "e-mail", "adresse électronique", "téléphone", "compte"],
+        "de": ["benutzername", "e-mail", "telefon", "konto"],
+        "es": ["nombre de usuario", "correo electrónico", "email", "teléfono", "cuenta"],
+        "it": ["nome utente", "e-mail", "telefono", "account"],
+        "pt": ["nome de usuário", "e-mail", "telefone", "conta"],
+        "tr": ["kullanıcı adı", "e-posta", "telefon", "hesap"],
+        "nl": ["gebruikersnaam", "e-mail", "telefoon", "account"],
+        "zh-cn": ["用户名", "电子邮件", "电话", "帐户"],
+        "ja": ["ユーザー名", "電子メール", "電話", "アカウント"],
+        "ko": ["사용자 이름", "이메일", "전화", "계정"],
+        "el": ["όνομα χρήστη", "ηλεκτρονικό ταχυδρομείο", "τηλέφωνο", "λογαριασμός"]  # Greek translations
+    }
+
+    password_translations = {
+        "en": ["password", "pass", "pwd"],
+        "fr": ["mot de passe", "passe"],
+        "de": ["passwort"],
+        "es": ["contraseña", "clave"],
+        "it": ["password", "parola d'ordine"],
+        "pt": ["senha", "palavra-passe"],
+        "tr": ["şifre", "parola"],
+        "nl": ["wachtwoord"],
+        "zh-cn": ["密码"],
+        "ja": ["パスワード"],
+        "ko": ["비밀번호"],
+        "el": ["κωδικός πρόσβασης", "κωδικός"]
+    }
+
+    submit_translations = {
+        "en": ["login", "log in", "sign in", "signin", "submit", "Submit", "SUBMIT"],
+        "fr": ["connexion", "se connecter", "soumettre", "Soumettre", "SOUMETTRE"],
+        "de": ["anmelden", "login", "einloggen", "einreichen", "Einreichen", "EINREICHEN"],
+        "es": ["iniciar sesión", "acceso", "entrar", "enviar", "Enviar", "ENVIAR"],
+        "it": ["accedi", "login", "collegati", "invia", "Invia", "INVIA"],
+        "pt": ["entrar", "iniciar sessão", "enviar", "Enviar", "ENVIAR"],
+        "tr": ["giriş yap", "oturum aç", "login", "gönder", "Gönder", "GÖNDER"],
+        "nl": ["inloggen", "login", "aanmelden", "indienen", "Indienen", "INDIENEN"],
+        "zh-cn": ["登录", "登入", "提交", "提交", "提交"],
+        "ja": ["ログイン", "サインイン", "送信", "送信", "送信"],
+        "ko": ["로그인", "접속", "제출", "제출", "제출"],
+        "el": ["σύνδεση", "login", "είσοδος", "υποβολή", "Υποβολή", "ΥΠΟΒΟΛΗ"]  # Greek translations
+    }
+
+    def generate_login_regex(self):
+        all_terms = [term for terms in self.login_translations.values() for term in terms]
+        patterns = [rf"\b{re.escape(term)}\b" for term in all_terms]
+        regex_pattern = "|".join(patterns)
+        compiled_regex = re.compile(regex_pattern, re.IGNORECASE)
+        return compiled_regex
+
+    def generate_username_regex(self):
+        all_terms = [term for terms in self.username_translations.values() for term in terms]
+        patterns = [rf"\b{re.escape(term)}\b" for term in all_terms]
+        regex_pattern = "|".join(patterns)
+        compiled_regex = re.compile(regex_pattern, re.IGNORECASE)
+        return compiled_regex
+
+    def generate_password_regex(self):
+        all_terms = [term for terms in self.password_translations.values() for term in terms]
+        patterns = [rf"\b{re.escape(term)}\b" for term in all_terms]
+        regex_pattern = "|".join(patterns)
+        compiled_regex = re.compile(regex_pattern, re.IGNORECASE)
+        return compiled_regex
+
+    def generate_submit_button_regex(self):
+        submit_terms = [term for terms in self.submit_translations.values() for term in terms]
+        patterns = [rf"\b{re.escape(term)}\b" for term in submit_terms]
+        regex_pattern = "|".join(patterns)
+        compiled_regex = re.compile(regex_pattern, re.IGNORECASE)
+        return compiled_regex
+
+    def find_element(self, regex, element_type="input"):
+        elements = self.page.locator(f"{element_type}:visible").all()
+        unique_elements = set()
+
+        for element in elements:
+            identifier = (element.get_attribute("id"), element.get_attribute("name"), element.text_content())
+            if identifier in unique_elements:
+                continue
+            unique_elements.add(identifier)
+
+            text_content = element.text_content() or ""
+            placeholder = element.get_attribute("placeholder") or ""
+            name = element.get_attribute("name") or ""
+            id_attr = element.get_attribute("id") or ""
+
+            if (regex.search(text_content) or
+                    regex.search(placeholder) or
+                    regex.search(name) or
+                    regex.search(id_attr)):
+                return element
+
+        return None
+
+    def run_test(self) -> TestResult:
+        try:
+            # page = self.page
+            self.page.goto(self.site.url)
+            self.capture_screenshot("goto")
+
+            # Step 1: Find and click_b the login button
+            login_regex = self.generate_login_regex()
+            login_button = self.find_element(login_regex, element_type="button,a")
+            if login_button:
+                print("check6", login_button)
+                self.capture_screenshot("click", login_button)
+                login_button.click()
+                self.page.wait_for_timeout(3000)
+                self.capture_screenshot("click", login_button)
+
+            else:
+                return TestResult(
+                    Name="Login Test",
+                    Status=TestStatus.FAIL,
+                    Description="Login button not found.",
+                    Actual_Result="No login button found on the page."
+                )
+
+            # Step 2: Find the username field
+            username_regex = self.generate_username_regex()
+            username_field = self.find_element(username_regex, element_type="input")
+            if not username_field:
+                return TestResult(
+                    Name="Login Test",
+                    Status=TestStatus.FAIL,
+                    Description="Username field not found.",
+                    Actual_Result="No username field found after login button click_b."
+                )
+
+            # Step 3: Find the password field
+            password_regex = self.generate_password_regex()
+            password_field = self.find_element(password_regex, element_type="input")
+            if not password_field:
+                return TestResult(
+                    Name="Login Test",
+                    Status=TestStatus.FAIL,
+                    Description="Password field not found.",
+                    Actual_Result="No password field found after login button click_b."
+                )
+
+            # Step 4: Fill in the username and password
+            username_field.fill(self.site.login.username)
+            self.capture_screenshot("fill", username_field)
+            password_field.fill(self.site.login.password)
+            self.capture_screenshot("fill", password_field)
+
+            # Step 5: Find and click_b the submit button
+            submit_button_regex = self.generate_submit_button_regex()
+            submit_button = self.find_element(submit_button_regex, element_type="button,input[type='submit']")
+            if submit_button:
+                self.capture_screenshot("click", submit_button)
+                submit_button.click()
+                self.page.wait_for_timeout(10000)
+                self.capture_screenshot("click")
+            else:
+                return TestResult(
+                    Name="Login Test",
+                    Status=TestStatus.FAIL,
+                    Description="Submit button not found.",
+                    Actual_Result="No submit button found after filling in login details."
+                )
+
+            # Step 6: Wait for the network to idle and save state
+            self.page.wait_for_load_state('networkidle')
+            pytest._authenticated_state = self.page.storage_state()
+            self.site.internal_pages.append(self.site.login.login_url)
+
+            return TestResult(
+                Name="Login Test",
+                Status=TestStatus.PASS,
+                Description="Successfully logged into the application.",
+                Actual_Result="Logged in"
+            )
+
+        except Exception as e:
+            return TestResult(
+                Name="Login Test",
+                Status=TestStatus.FAIL,
+                Description="Login test failed.",
+                Actual_Result=str(e)
+            )
+
+    def run_comparison(self, results):
+        return ComparisonResult(
+            Name="Login Test",
+            Status=TestStatus.PASS,
+            Description="Login functionality works as expected.",
+            Expected_Result="User is on the Dashboard page."
+        )
+##############################################################################################################
+import json
+import datetime
+import platform
+import base64
+
+
+# Function to convert an image to a Base64 string
+def img_to_base64(img_path):
+    with open(img_path, "rb") as img_file:
+        return base64.b64encode(img_file.read()).decode('utf-8')
+
+
+# Dependency inversion principle: Abstract classes/interfaces
+class FileHandler:
+    def load_json_file(self, file_path):
+        raise NotImplementedError
+
+
+class ImageHandler:
+    def img_to_base64(self, img_path):
+        raise NotImplementedError
+
+
+class ReportGenerator:
+    def generate_result_table(self, comparison_file, env_files):
+        raise NotImplementedError
+
+
+class JsonFileHandler(FileHandler):
+    def load_json_file(self, file_path):
+        with open(file_path, "r") as json_file:
+            return json.load(json_file)
+
+
+class Base64ImageHandler(ImageHandler):
+    def img_to_base64(self, img_path):
+        with open(img_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode('utf-8')
+
+
+class HTMLReportGenerator(ReportGenerator):
+    def __init__(self, file_handler: FileHandler, image_handler: ImageHandler):
+        self.file_handler = file_handler
+        self.image_handler = image_handler
+
+    def generate_result_table(self, comparison_file, env_files):
+        col_head = "<th>Result</th>\n<th>Check_name</th>\n"
+        data_main = ""
+        i = 1
+
+        # Load comparison data
+        comparison_data = self.file_handler.load_json_file(comparison_file)
+
+        # Extract environments from file_paths dict keys, excluding 'comparison'
+        environments = [env for env in env_files.keys() if env != 'comparison']
+
+        # Add environment columns dynamically based on environments list
+        for env in environments:
+            col_head += f"<th>{env.capitalize()}</th>\n"
+
+        for check_item in comparison_data:
+            check_name = check_item["Name"]
+            data_row1 = (f'<tr class="results-table {check_item["Status"].lower()}" data-toggle="collapse" id="row{i}" '
+                         f'data-target=".row{i}" onclick="toggleDetails(\'row{i}\')">\n')
+            data_main += data_row1
+            data_main += f"<td class='{check_item['Status'].lower()}'>{check_item['Status'].capitalize()}</td>\n"
+            data_main += f"<td>{check_name}</td>\n"
+
+            for env in environments:
+                env_file = env_files.get(env)
+                if env_file:
+                    env_details = next((env_item for env_item in env_file if env_item["Name"] == check_name), None)
+                    if env_details:
+                        data_main += f"<td>{env_details['Status']}</td>\n"
+                    else:
+                        data_main += "<td></td>\n"
+                else:
+                    data_main += "<td></td>\n"
+
+            data_row2 = f'</tr><tr class="collapse row{i}" style="display: none;">\n'
+            data_main += data_row2
+            data_main += f'<td>{check_item["Description"]}</td>\n'
+            data_main += f'<td>{check_item["Description"]}</td>\n'
+
+            for env in environments:
+                env_file = env_files.get(env)
+                if env_file:
+                    env_details = next((env_item for env_item in env_file if env_item["Name"] == check_name), None)
+                    if env_details:
+                        if env_details["Proof_Path"]:
+                            img_base64 = self.image_handler.img_to_base64(env_details["Proof_Path"])
+                            # Add a clickable thumbnail that opens a new window with the full HTML report
+                            if env_details["Proof_Path"]:
+                                img_base64 = img_to_base64(env_details["Proof_Path"])
+                                img_tag = f'<img src="data:image/png;base64,{img_base64}" alt="{env_details["Name"]}" width="200"onclick="enlargeImage(this.src)"/>'
+                            # img_tag = (
+                            #     f'<img src="data:image/png;base64,{img_base64}" alt="{env_details["Name"]}" width="200" '
+                            #     f'onclick="enlargeImage(\'{env}_report.html\')" style="cursor:pointer;"/>')
+                            data_main += f'<td>{img_tag}</td>\n'
+                        else:
+                            data_main += "<td></td>\n"
+                    else:
+                        data_main += "<td></td>\n"
+                else:
+                    data_main += "<td></td>\n"
+
+            data_row3 = '<td><input type="checkbox" /> Select</td></tr>\n'
+            data_main += data_row3
+            i += 1
+
+        return col_head, data_main
+
+
+def generate_html_report(file_paths, subscription):
+    file_handler = JsonFileHandler()
+    image_handler = Base64ImageHandler()
+    report_generator = HTMLReportGenerator(file_handler, image_handler)
+
+    comparison_file = file_paths['comparison']
+    env_files = {env: file_handler.load_json_file(path) for env, path in file_paths.items() if env != 'comparison'}
+
+    env_details = {
+        "Site": "Example Site",
+        "Subscription": "Paid",
+        "Execution Date and Time": datetime.datetime.now().strftime("%d-%m-%Y %H:%M:%S"),
+        "Prod_Url": "http://example.com/prod",
+        "Stage_Url": "http://example.com/stage",
+        "Dev_Url": "http://example.com/dev",
+        "Platform": platform.system(),
+        "Total_Execution_Time": "00:10:00",
+        "Browser": "Chrome",
+        "Browser_ver.": "91.0"
+    }
+
+    col_head, data_main = report_generator.generate_result_table(comparison_file, env_files)
+
+    css_styles = '''
+    body {
+      font-family: Helvetica, Arial, sans-serif;
+      font-size: 12px;
+      min-width: 800px;
+      color: #999;
+    }
+
+    h1 {
+      font-size: 24px;
+      color: black;
+    }
+
+    h2 {
+      font-size: 16px;
+      color: black;
+    }
+
+    p {
+      color: black;
+    }
+
+    a {
+      color: #999;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    .metric-card {
+      display: inline-block;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 10px;
+      text-align: center;
+      width: 200px;
+      cursor: pointer;
+      color: white;
+    }
+
+    .metric-card.passed {
+      background-color: #4caf50;
+    }
+
+    .metric-card.failed {
+      background-color: #f44336;
+    }
+
+    .metric-card.error {
+      background-color: #ff9800;
+    }
+
+    .metric-card.existing {
+      background-color: #ffeb3b;
+      color: black;
+    }
+
+    #results-table {
+      border: 1px solid #e6e6e6;
+      color: #999;
+      font-size: 12px;
+      width: 100%;
+    }
+
+    #results-table th,
+    #results-table td {
+      padding: 5px;
+      border: 1px solid #e6e6e6;
+      text-align: left;
+    }
+
+    #results-table th {
+      font-weight: bold;
+    }
+
+    #results-table td.passed {
+      color: #4caf50;
+    }
+
+    #results-table td.failed {
+      color: #f44336;
+    }
+
+    #results-table td.existing {
+      color: #ffeb3b;
+    }
+
+    #results-table td.error {
+      color: #ff9800;
+    }
+
+    .collapsible:hover {
+      cursor: pointer;
+      color: #007bff;
+    }
+
+    .collapsible {
+      color: black;
+    }
+
+    .collapsible::after {
+      content: " \\25BC";
+    }
+
+    .collapsible.expanded::after {
+      content: " \\25B2";
+    }
+
+    .extras-row.hidden {
+      display: none;
+    }
+
+    .media-container {
+      display: flex;
+      align-items: center;
+    }
+
+    .media-container img {
+      max-width: 100px;
+      margin-right: 10px;
+    }
+
+    .enlarge-image {
+      cursor: pointer;
+      max-width: 200px;
+      transition: transform 0.2s;
+    }
+
+    .enlarge-image:hover {
+      transform: scale(1.1);
+    }
+
+    .enlarged-image-popup {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 9999;
+      background: white;
+      border: 2px solid black;
+      padding: 10px;
+      max-width: 80%;
+      max-height: 80%;
+      display: none;
+    }
+
+    .enlarged-image-popup img {
+      width: 100%;
+      height: auto;
+    }
+    '''
+
+    html_template = '''
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>QA Automation Report</title>
+        <style>
+            {css_styles}
+        </style>
+        <script>
+            function toggleDetails(id) {{
+                var elements = document.getElementsByClassName(id);
+                for (var i = 0; i < elements.length; i++) {{
+                    if (elements[i].style.display === 'none' || elements[i].style.display === '') {{
+                        elements[i].style.display = 'table-row';
+                    }} else {{
+                        elements[i].style.display = 'none';
+                    }}
+                }}
+            }}
+
+            function filterResults(status) {{
+                var rows = document.getElementsByClassName('results-table');
+                for (var i = 0; i < rows.length; i++) {{
+                    if (status === 'all' || rows[i].classList.contains(status)) {{
+                        rows[i].style.display = '';
+                    }} else {{
+                        rows[i].style.display = 'none';
+                    }}
+                }}
+            }}
+
+            function toggleCard(cardClass) {{
+                var card = document.querySelector('.' + cardClass);
+                if (card.classList.contains('selected')) {{
+                    card.classList.remove('selected');
+                    filterResults('all');
+                }} else {{
+                    card.classList.add('selected');
+                    filterResults(cardClass);
+                }}
+            }}
+
+            function enlargeImage(src) {{
+                var popup = document.getElementById('enlarged-image-popup');
+                var img = popup.querySelector('img');
+                img.src = src;
+                popup.style.display = 'block';
+            }}
+
+            function closeImagePopup() {{
+                var popup = document.getElementById('enlarged-image-popup');
+                popup.style.display = 'none';
+            }}
+        </script>
+    </head>
+    <body>
+        <div class="container">
+            <h1>QA Automation Report</h1>
+            <div id="environment">
+                <h2>Environment</h2>
+                <table>
+                    <tr>
+                        <td>
+                            <table>
+                                <tr><td>Site</td><td>{Site}</td></tr>
+                                <tr><td>Subscription</td><td>{Subscription}</td></tr>
+                                <tr><td>Prod Url</td><td>{Prod_Url}</td></tr>
+                                <tr><td>Stage Url</td><td>{Stage_Url}</td></tr>
+                                <tr><td>Dev Url</td><td>{Dev_Url}</td></tr>
+                            </table>
+                        </td>
+                        <td>
+                            <table>
+                                <tr><td>Environment</td><td>{Platform}</td></tr>
+                                <tr><td>Execution Date and Time</td><td>{Execution_Date_and_Time}</td></tr>
+                                <tr><td>Total Execution Time</td><td>{Total_Execution_Time}</td></tr>
+                                <tr><td>Browser</td><td>{Browser}</td></tr>
+                                <tr><td>Browser + ver.</td><td>{Browser_ver}</td></tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+            <div class="summary">
+                <h2>Summary</h2>
+                <div class="metric-card passed" onclick="toggleCard('passed')">
+                    <h3>Passed</h3>
+                    <p>{passed}</p>
+                </div>
+                <div class="metric-card failed" onclick="toggleCard('failed')">
+                    <h3>Failed</h3>
+                    <p>{failed}</p>
+                </div>
+                <div class="metric-card existing" onclick="toggleCard('existing')">
+                    <h3>Existing Issues</h3>
+                    <p>{xfailed}</p>
+                </div>
+                <div class="metric-card error" onclick="toggleCard('error')">
+                    <h3>Error</h3>
+                    <p>{skipped}</p>
+                </div>
+            </div>
+            <div class="results">
+                <h2>Results</h2>
+                <table id="results-table">
+                    <thead id="results-table-head">
+                        {col_head}
+                    </thead>
+                    <tbody>
+                        {result_rows}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div id="enlarged-image-popup" class="enlarged-image-popup" onclick="closeImagePopup()">
+            <img src="" alt="Enlarged Image"/>
+        </div>
+    </body>
+    </html>
+    '''
+
+    html_content = html_template.format(
+        css_styles=css_styles,
+        Site=env_details["Site"],
+        Subscription=env_details["Subscription"],
+        Execution_Date_and_Time=env_details["Execution Date and Time"],
+        Prod_Url=env_details["Prod_Url"],
+        Stage_Url=env_details["Stage_Url"],
+        Dev_Url=env_details["Dev_Url"],
+        Platform=env_details["Platform"],
+        Total_Execution_Time=env_details["Total_Execution_Time"],
+        Browser=env_details["Browser"],
+        Browser_ver=env_details["Browser_ver."],
+        passed="1",
+        failed="2",
+        xfailed="3",
+        skipped="4",
+        col_head=col_head,
+        result_rows=data_main
+    )
+
+    # Write the HTML content to a file
+    with open(f'{subscription}.html', 'w') as f:
+        f.write(html_content)
+
+    print("Report generated successfully!")
+
+
+file_path = {
+    'prod': "C:\\Users\\deepa\\Documents\\Automation_QA\\QAPlay\\Result\\cardio\\02_09_2024_09_12_38\\prod\\cardio_prod_results.json",
+    'comparison': "C:\\Users\\deepa\\Documents\\Automation_QA\\QAPlay\\Result\\cardio\\02_09_2024_09_12_38\\comparison.json"
+}
+
+generate_html_report(file_path, 'cardio')
