@@ -44,7 +44,7 @@ class TestExecution(ABC):
                 test_result.Proof_Path = self.screenshot_paths
 
                 OutputHandler.save_test_result(self.subscription.name, env_name, test_result)
-                self.create_html_report()  # Generate HTML report after test execution
+                # self.create_html_report()  # Generate HTML report after test execution
         self.save_test_comparison()
         self.generate_report()
 
@@ -96,136 +96,136 @@ class TestExecution(ABC):
             }}
         ''')
 
-    def create_html_report(self):
-        # Define the HTML template as a raw string using a direct approach
-        html_template = '''
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Test Execution Report</title>
-            <style>
-                body {
-                    font-family: Arial, sans-serif;
-                    margin: 0;
-                    padding: 0;
-                }
-                .container {
-                    width: 80%;
-                    margin: 0 auto;
-                }
-                .timeline {
-                    display: flex;
-                    overflow-x: auto;
-                    padding: 10px 0;
-                    border-bottom: 2px solid #ddd;
-                }
-                .timeline-item {
-                    position: relative;
-                    margin-right: 15px;
-                }
-                .timeline-item img {
-                    width: 100px;
-                    height: 60px;
-                    object-fit: cover;
-                    border: 2px solid #ddd;
-                    border-radius: 4px;
-                    cursor: pointer;
-                }
-                .content {
-                    display: flex;
-                    margin-top: 20px;
-                }
-                .content .left-column {
-                    width: 30%;
-                    padding-right: 20px;
-                    border-right: 2px solid #ddd;
-                }
-                .content .right-column {
-                    width: 70%;
-                }
-                .content img {
-                    max-width: 100%;
-                    border: 2px solid #ddd;
-                    border-radius: 4px;
-                }
-                .action-description {
-                    margin-bottom: 20px;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <!-- Timeline -->
-                <div class="timeline">
-                    {timeline_items}
-                </div>
-
-                <!-- Content Area -->
-                <div class="content">
-                    <!-- Left Column -->
-                    <div class="left-column">
-                        <div class="action-description">
-                            <h3>Action Description</h3>
-                            <p id="action-description"></p>
-                        </div>
-                        <div class="element-details">
-                            <h3>Element Details</h3>
-                            <p id="element-details"></p>
-                        </div>
-                    </div>
-
-                    <!-- Right Column -->
-                    <div class="right-column">
-                        <img id="full-image" src="" alt="Full Screenshot">
-                    </div>
-                </div>
-            </div>
-
-            <script>
-                function showFullImage(imagePath, actionDescription) {
-                    document.getElementById('full-image').src = imagePath;
-                    document.getElementById('action-description').textContent = actionDescription;
-                    // Add more details as needed
-                }
-            </script>
-        </body>
-        </html>
-        '''
-
-        def get_base64_image(image_path):
-            """Convert image to base64."""
-            with open(image_path, "rb") as image_file:
-                return base64.b64encode(image_file.read()).decode('utf-8')
-
-        # Generate timeline items with thumbnails
-        timeline_items = ''
-        for i, screenshot_path in enumerate(self.screenshot_paths):
-            # Convert image to Base64
-            base64_image = get_base64_image(screenshot_path)
-            image_data_uri = f"data:image/png;base64,{base64_image}"
-            action_description = f"Step {i + 1}"  # Example description, modify as needed
-            timeline_items += f'''
-            <div class="timeline-item">
-                <img src="{image_data_uri}" alt="Screenshot Thumbnail" onclick="showFullImage('{image_data_uri}', '{action_description}')">
-            </div>
-            '''
-
-        # Create the HTML content
-        html_content = html_template.replace('{timeline_items}', timeline_items)
-
-        # Write the HTML content to a file in the same directory as the first screenshot
-        if self.screenshot_paths:
-            output_file = os.path.join(os.path.dirname(self.screenshot_paths[0]), 'report.html')
-            with open(output_file, 'w') as file:
-                file.write(html_content)
-
-        print(f"HTML report generated: {output_file}")
+    # def create_html_report(self):
+    #     # Define the HTML template as a raw string using a direct approach
+    #     html_template = '''
+    #     <!DOCTYPE html>
+    #     <html lang="en">
+    #     <head>
+    #         <meta charset="UTF-8">
+    #         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    #         <title>Test Execution Report</title>
+    #         <style>
+    #             body {
+    #                 font-family: Arial, sans-serif;
+    #                 margin: 0;
+    #                 padding: 0;
+    #             }
+    #             .container {
+    #                 width: 80%;
+    #                 margin: 0 auto;
+    #             }
+    #             .timeline {
+    #                 display: flex;
+    #                 overflow-x: auto;
+    #                 padding: 10px 0;
+    #                 border-bottom: 2px solid #ddd;
+    #             }
+    #             .timeline-item {
+    #                 position: relative;
+    #                 margin-right: 15px;
+    #             }
+    #             .timeline-item img {
+    #                 width: 100px;
+    #                 height: 60px;
+    #                 object-fit: cover;
+    #                 border: 2px solid #ddd;
+    #                 border-radius: 4px;
+    #                 cursor: pointer;
+    #             }
+    #             .content {
+    #                 display: flex;
+    #                 margin-top: 20px;
+    #             }
+    #             .content .left-column {
+    #                 width: 30%;
+    #                 padding-right: 20px;
+    #                 border-right: 2px solid #ddd;
+    #             }
+    #             .content .right-column {
+    #                 width: 70%;
+    #             }
+    #             .content img {
+    #                 max-width: 100%;
+    #                 border: 2px solid #ddd;
+    #                 border-radius: 4px;
+    #             }
+    #             .action-description {
+    #                 margin-bottom: 20px;
+    #             }
+    #         </style>
+    #     </head>
+    #     <body>
+    #         <div class="container">
+    #             <!-- Timeline -->
+    #             <div class="timeline">
+    #                 {timeline_items}
+    #             </div>
+    #
+    #             <!-- Content Area -->
+    #             <div class="content">
+    #                 <!-- Left Column -->
+    #                 <div class="left-column">
+    #                     <div class="action-description">
+    #                         <h3>Action Description</h3>
+    #                         <p id="action-description"></p>
+    #                     </div>
+    #                     <div class="element-details">
+    #                         <h3>Element Details</h3>
+    #                         <p id="element-details"></p>
+    #                     </div>
+    #                 </div>
+    #
+    #                 <!-- Right Column -->
+    #                 <div class="right-column">
+    #                     <img id="full-image" src="" alt="Full Screenshot">
+    #                 </div>
+    #             </div>
+    #         </div>
+    #
+    #         <script>
+    #             function showFullImage(imagePath, actionDescription) {
+    #                 document.getElementById('full-image').src = imagePath;
+    #                 document.getElementById('action-description').textContent = actionDescription;
+    #                 // Add more details as needed
+    #             }
+    #         </script>
+    #     </body>
+    #     </html>
+    #     '''
+    #
+    #     def get_base64_image(image_path):
+    #         """Convert image to base64."""
+    #         with open(image_path, "rb") as image_file:
+    #             return base64.b64encode(image_file.read()).decode('utf-8')
+    #
+    #     # Generate timeline items with thumbnails
+    #     timeline_items = ''
+    #     for i, screenshot_path in enumerate(self.screenshot_paths):
+    #         # Convert image to Base64
+    #         base64_image = get_base64_image(screenshot_path)
+    #         image_data_uri = f"data:image/png;base64,{base64_image}"
+    #         action_description = f"Step {i + 1}"  # Example description, modify as needed
+    #         timeline_items += f'''
+    #         <div class="timeline-item">
+    #             <img src="{image_data_uri}" alt="Screenshot Thumbnail" onclick="showFullImage('{image_data_uri}', '{action_description}')">
+    #         </div>
+    #         '''
+    #
+    #     # Create the HTML content
+    #     html_content = html_template.replace('{timeline_items}', timeline_items)
+    #
+    #     # Write the HTML content to a file in the same directory as the first screenshot
+    #     if self.screenshot_paths:
+    #         output_file = os.path.join(os.path.dirname(self.screenshot_paths[0]), 'report.html')
+    #         with open(output_file, 'w') as file:
+    #             file.write(html_content)
+    #
+    #     print(f"HTML report generated: {output_file}")
 
     def generate_report(self):
         file_paths = OutputHandler.get_file_paths(self.subscription.name)
-        generate_html_report(file_paths, self.subscription.name)
+        generate_html_report(file_paths, self.subscription)
 #########################################################################################################################
 import json
 from datetime import datetime
@@ -421,8 +421,8 @@ class OutputHandler:
         screenshot_path = env_dir / screenshot_name
 
         try:
-            page.screenshot(path="C:\\Users\\deepa\\Documents\\Automation_QA\\QAPlay\\"+str(screenshot_path), full_page=True)
-            return str(screenshot_path)
+            page.screenshot(path=f"C:\\Users\\deepa\\Documents\\Automation_QA\\QAPlay\\{str(screenshot_path)}", full_page=True)
+            return f"C:\\Users\\deepa\\Documents\\Automation_QA\\QAPlay\\{str(screenshot_path)}"
         except Exception as e:
             print(f"Failed to capture screenshot for action '{action_name}': {str(e)}")
             return ''
@@ -557,7 +557,6 @@ class LoginTest(TestExecution):
             login_regex = self.generate_login_regex()
             login_button = self.find_element(login_regex, element_type="button,a")
             if login_button:
-                print("check6", login_button)
                 self.capture_screenshot("click", login_button)
                 login_button.click()
                 self.page.wait_for_timeout(3000)
@@ -642,11 +641,137 @@ class LoginTest(TestExecution):
             Description="Login functionality works as expected.",
             Expected_Result="User is on the Dashboard page."
         )
+
 ##############################################################################################################
 import json
 import datetime
 import platform
 import base64
+
+import base64
+import os
+
+from Utilities.FilePath_Handler import OutputHandler
+
+
+def create_html_report(proof_paths):
+    # Define the HTML template as a raw string using a direct approach
+    html_template = '''
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Test Execution Report</title>
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                margin: 0;
+                padding: 0;
+            }}
+            .container {{
+                width: 80%;
+                margin: 0 auto;
+            }}
+            .timeline {{
+                display: flex;
+                overflow-x: auto;
+                padding: 10px 0;
+                border-bottom: 2px solid #ddd;
+            }}
+            .timeline-item {{
+                position: relative;
+                margin-right: 15px;
+            }}
+            .timeline-item img {{
+                width: 100px;
+                height: 60px;
+                object-fit: cover;
+                border: 2px solid #ddd;
+                border-radius: 4px;
+                cursor: pointer;
+            }}
+            .content {{
+                display: flex;
+                margin-top: 20px;
+            }}
+            .content .left-column {{
+                width: 30%;
+                padding-right: 20px;
+                border-right: 2px solid #ddd;
+            }}
+            .content .right-column {{
+                width: 70%;
+            }}
+            .content img {{
+                max-width: 100%;
+                border: 2px solid #ddd;
+                border-radius: 4px;
+            }}
+            .action-description {{
+                margin-bottom: 20px;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <!-- Timeline -->
+            <div class="timeline">
+                {timeline_items}
+            </div>
+
+            <!-- Content Area -->
+            <div class="content">
+                <!-- Left Column -->
+                <div class="left-column">
+                    <div class="action-description">
+                        <h3>Action Description</h3>
+                        <p id="action-description"></p>
+                    </div>
+                    <div class="element-details">
+                        <h3>Element Details</h3>
+                        <p id="element-details"></p>
+                    </div>
+                </div>
+
+                <!-- Right Column -->
+                <div class="right-column">
+                    <img id="full-image" src="" alt="Full Screenshot">
+                </div>
+            </div>
+        </div>
+
+        <script>
+            function showFullImage(imagePath, actionDescription) {{
+                document.getElementById('full-image').src = imagePath;
+                document.getElementById('action-description').textContent = actionDescription;
+            }}
+        </script>
+    </body>
+    </html>
+    '''
+
+    def get_base64_image(image_path):
+        """Convert image to base64."""
+        with open(image_path, "rb") as image_file:
+            return base64.b64encode(image_file.read()).decode('utf-8')
+
+    # Generate timeline items with thumbnails
+    timeline_items = ''
+    for i, screenshot_path in enumerate(proof_paths):
+        base64_image = get_base64_image(screenshot_path)
+        image_data_uri = f"data:image/png;base64,{base64_image}"
+        action_description = f"Step {i + 1}"  # Example description, modify as needed
+        timeline_items += f'''
+        <div class="timeline-item">
+            <img src="{image_data_uri}" alt="Screenshot Thumbnail" onclick="showFullImage('{image_data_uri}', '{action_description}')">
+        </div>
+        '''
+
+    # Create the HTML content
+    html_content = html_template.format(timeline_items=timeline_items)
+
+    return html_content
 
 
 # Function to convert an image to a Base64 string
@@ -679,6 +804,8 @@ class JsonFileHandler(FileHandler):
 
 class Base64ImageHandler(ImageHandler):
     def img_to_base64(self, img_path):
+        # if type(img_path) != type(" "):
+        #     img_path = img_path[0]
         with open(img_path, "rb") as img_file:
             return base64.b64encode(img_file.read()).decode('utf-8')
 
@@ -733,14 +860,20 @@ class HTMLReportGenerator(ReportGenerator):
                     env_details = next((env_item for env_item in env_file if env_item["Name"] == check_name), None)
                     if env_details:
                         if env_details["Proof_Path"]:
-                            img_base64 = self.image_handler.img_to_base64(env_details["Proof_Path"])
-                            # Add a clickable thumbnail that opens a new window with the full HTML report
-                            if env_details["Proof_Path"]:
-                                img_base64 = img_to_base64(env_details["Proof_Path"])
-                                img_tag = f'<img src="data:image/png;base64,{img_base64}" alt="{env_details["Name"]}" width="200"onclick="enlargeImage(this.src)"/>'
-                            # img_tag = (
-                            #     f'<img src="data:image/png;base64,{img_base64}" alt="{env_details["Name"]}" width="200" '
-                            #     f'onclick="enlargeImage(\'{env}_report.html\')" style="cursor:pointer;"/>')
+                            html_content = create_html_report(env_details["Proof_Path"])
+
+                            # Escape quotes and newlines for embedding in JavaScript
+                            escaped_html_content = html_content.replace('"', '&quot;').replace('\n', '')
+                            img_base64 = self.image_handler.img_to_base64(
+                                env_details["Proof_Path"][0])  # Using the first image as the thumbnail
+                            # img_tag = f'''
+                            # <img src="data:image/png;base64,{img_base64}" alt="{env_details["Name"]}" width="200"
+                            # onclick="openHtmlPopup('{env}_report.html')"/>
+                            # '''
+                            img_tag = f'''
+                                <img src="data:image/png;base64,{img_base64}" alt="{env_details["Name"]}" width="200" 
+                                onclick="openHtmlPopup(`{escaped_html_content}`)"/>
+                                '''
                             data_main += f'<td>{img_tag}</td>\n'
                         else:
                             data_main += "<td></td>\n"
@@ -762,6 +895,7 @@ def generate_html_report(file_paths, subscription):
     report_generator = HTMLReportGenerator(file_handler, image_handler)
 
     comparison_file = file_paths['comparison']
+    comparison_data = file_handler.load_json_file(comparison_file)
     env_files = {env: file_handler.load_json_file(path) for env, path in file_paths.items() if env != 'comparison'}
 
     env_details = {
@@ -781,20 +915,23 @@ def generate_html_report(file_paths, subscription):
 
     css_styles = '''
     body {
-      font-family: Helvetica, Arial, sans-serif;
       font-size: 12px;
       min-width: 800px;
       color: #999;
+      background:$dark-bg;
+      font-family: 'Open Sans', sans-serif;
     }
 
     h1 {
       font-size: 24px;
       color: black;
+      text-align: center;
     }
 
     h2 {
       font-size: 16px;
       color: black;
+      text-align: center;
     }
 
     p {
@@ -809,6 +946,21 @@ def generate_html_report(file_paths, subscription):
       border-collapse: collapse;
       width: 100%;
     }
+    th {
+    background-color:  #00BFFF;
+    color: white;
+    text-align: center;
+    }
+    th, td {
+      border-bottom: 1px solid #ddd;
+
+    }
+    td {
+      border-bottom: 1px solid #ddd;
+      hover {background-color: coral;}
+      cursor: pointer;
+    }
+
 
     .metric-card {
       display: inline-block;
@@ -843,6 +995,7 @@ def generate_html_report(file_paths, subscription):
       color: #999;
       font-size: 12px;
       width: 100%;
+
     }
 
     #results-table th,
@@ -854,10 +1007,17 @@ def generate_html_report(file_paths, subscription):
 
     #results-table th {
       font-weight: bold;
+      text-align: center;
+
+    }
+    #results-table td, {
+      font-weight: bold;
+      cursor: pointer;
     }
 
     #results-table td.passed {
       color: #4caf50;
+
     }
 
     #results-table td.failed {
@@ -988,6 +1148,18 @@ def generate_html_report(file_paths, subscription):
                 var popup = document.getElementById('enlarged-image-popup');
                 popup.style.display = 'none';
             }}
+
+            function openHtmlPopup(htmlContent) {{
+                // Create a new window
+                var popupWindow = window.open('', 'popupWindow', 'width=800,height=600,scrollbars=yes');
+
+                // Write the HTML content to the new window
+                popupWindow.document.write(htmlContent);
+
+                // Close the document to ensure the content is rendered
+                popupWindow.document.close();
+            }}
+
         </script>
     </head>
     <body>
@@ -999,7 +1171,7 @@ def generate_html_report(file_paths, subscription):
                     <tr>
                         <td>
                             <table>
-                                <tr><td>Site</td><td>{Site}</td></tr>
+                                <tr><th colspan="2">Site Details</th></tr>
                                 <tr><td>Subscription</td><td>{Subscription}</td></tr>
                                 <tr><td>Prod Url</td><td>{Prod_Url}</td></tr>
                                 <tr><td>Stage Url</td><td>{Stage_Url}</td></tr>
@@ -1008,7 +1180,7 @@ def generate_html_report(file_paths, subscription):
                         </td>
                         <td>
                             <table>
-                                <tr><td>Environment</td><td>{Platform}</td></tr>
+                                <tr><th colspan="2">Environment Details</th></tr>
                                 <tr><td>Execution Date and Time</td><td>{Execution_Date_and_Time}</td></tr>
                                 <tr><td>Total Execution Time</td><td>{Total_Execution_Time}</td></tr>
                                 <tr><td>Browser</td><td>{Browser}</td></tr>
@@ -1056,36 +1228,53 @@ def generate_html_report(file_paths, subscription):
     </html>
     '''
 
+    # Get the current date and time
+    current_datetime = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # # Get the total execution time from comparison_data
+    # total_execution_time = sum(item.get('Execution_Time', 0) for item in comparison_data)
+
+    # Get the OS platform and version
+    os_platform = platform.system()
+    os_version = platform.version()
+
+    # Extract passed, failed, xfailed, skipped counts from comparison_data
+    passed = sum(1 for item in comparison_data if item['Status'] == 'Passed')
+    failed = sum(1 for item in comparison_data if item['Status'] == 'Failed')
+    xfailed = sum(1 for item in comparison_data if item['Status'] == 'XFailed')
+    skipped = sum(1 for item in comparison_data if item['Status'] == 'Skipped')
+
     html_content = html_template.format(
         css_styles=css_styles,
-        Site=env_details["Site"],
-        Subscription=env_details["Subscription"],
+        Site=subscription.name,
+        Subscription=subscription.name,
         Execution_Date_and_Time=env_details["Execution Date and Time"],
-        Prod_Url=env_details["Prod_Url"],
-        Stage_Url=env_details["Stage_Url"],
-        Dev_Url=env_details["Dev_Url"],
-        Platform=env_details["Platform"],
-        Total_Execution_Time=env_details["Total_Execution_Time"],
+        Prod_Url=subscription.env.prod.url,
+        Stage_Url="subscription.env.stage.url",
+        Dev_Url="subscription.env.dev.url",
+        Platform=f"{os_platform} {os_version}",
+        Total_Execution_Time="5 sec",
         Browser=env_details["Browser"],
-        Browser_ver=env_details["Browser_ver."],
-        passed="1",
-        failed="2",
-        xfailed="3",
-        skipped="4",
+        Browser_ver="Playwright with pytest",
+        passed=passed,
+        failed=failed,
+        xfailed=xfailed,
+        skipped=skipped,
         col_head=col_head,
         result_rows=data_main
     )
 
+    timestamp = datetime.datetime.now().strftime("%d_%m_%Y_%H_%M_%S")
+    execution_dir = OutputHandler.initialize_execution_dir(subscription.name)
+    report_file_path = execution_dir / f"{subscription.name}_{timestamp}.html"
+
     # Write the HTML content to a file
-    with open(f'{subscription}.html', 'w') as f:
+    with open(report_file_path, 'w') as f:
         f.write(html_content)
 
-    print("Report generated successfully!")
-
-
-file_path = {
-    'prod': "C:\\Users\\deepa\\Documents\\Automation_QA\\QAPlay\\Result\\cardio\\02_09_2024_09_12_38\\prod\\cardio_prod_results.json",
-    'comparison': "C:\\Users\\deepa\\Documents\\Automation_QA\\QAPlay\\Result\\cardio\\02_09_2024_09_12_38\\comparison.json"
-}
-
-generate_html_report(file_path, 'cardio')
+# file_path = {
+#     'prod': "C:\\Users\\deepa\\Documents\\Automation_QA\\QAPlay\\Result\\cardio\\02_09_2024_20_48_28\\prod\\cardio_prod_results.json",
+#     'comparison': "C:\\Users\\deepa\\Documents\\Automation_QA\\QAPlay\\Result\\cardio\\02_09_2024_20_48_28\\comparison.json"
+# }
+#
+# generate_html_report(file_path, 'cardio')
